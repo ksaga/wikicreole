@@ -129,7 +129,21 @@ class WikiCreole
 
   def initialize(options = {})
     @options = options
+
+    # setup arrays they are used in setup_chunks_hash
+    @plain_chars        = PLAINCHARS.dup
+    @inline_markups     = INLINE.dup
+    @all_inline_markups = ALL_INLINE.dup
+    @blocks_markups     = BLOCKS.dup
+
+    # apply options on the arrays
+    apply_keep_line_break if @options[:keep_line_break]
+    apply_no_extended_markup if @options[:no_extended_markup]
+
     setup_chunks_hash
+
+    apply_no_extended_markup2 if @options[:no_extended_markup]
+
     init
   end
 
@@ -291,15 +305,42 @@ private
 
   ALL_INLINE   = [INLINE, 'plain', 'any'].flatten # including plain text
 
-  BLOCKS       = %w{h1 h2 h3 hr nowiki h4 h5 h6 ul ol table p ip dl plug plug2 blank}
+  BLOCKS       = %w{h1 h2 h3 hr nowiki h4 h5 h6 ul ol table p ip dl plug
+                    plug2 blank}
+
+  EXTENED_MARKUPS = %w{sub sup mono u plug plug2 tm reg copy ndash ellipsis
+                       amp ip dl plug plug2}
 
   # handy - used several times in %chunks
   EOL = '(?:\n|$)'.freeze # end of line (or string)
 
+  def apply_keep_line_break
+    # patch \\\n not to be '<br /><br />', but just '<br />'
+    @inline_markups.insert(@inline_markups.index('br'), 'dupbr')
+    @all_inline_markups.insert(@all_inline_markups.index('br'), 'dupbr')
+  end
+
+  def apply_no_extended_markup
+    @plain_chars += %w{^ _ , < # : ; ( - .}
+  end
+
+  def apply_no_extended_markup2
+    # delete references for extended markup
+    @chunks_hash.each_key do |key|
+      ent = @chunks_hash[key]
+      if Array === ent[:contains]
+        ent[:contains] -= EXTENED_MARKUPS
+      end
+      if Array === ent[:stops]
+        ent[:stops] -= EXTENED_MARKUPS
+      end
+    end
+  end
+
   def setup_chunks_hash
   @chunks_hash = {
     :top => {
-       :contains => BLOCKS,
+       :contains => @blocks_markups,
     },
     :blank => {
       :curpat => "(?= *#{EOL})",
@@ -312,8 +353,8 @@ private
     :p => {
       :curpat => '(?=.)',
       :stops => ['blank', 'ip', 'h', 'hr', 'nowiki', 'ul', 'ol', 'dl', 'table'],
-      :hint => PLAINCHARS,
-      :contains => ALL_INLINE,
+      :hint => @plain_chars,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s| s.chomp },
       :open => "<p>", :close => "</p>\n\n",
     },
@@ -343,7 +384,7 @@ private
       :fwpat => '\n(?=;)',
       :stops => '(?=:|\n)',
       :hint => [';'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s.sub!(/^;\s*/, '')
         s
@@ -355,7 +396,7 @@ private
       :fwpat => '(?:\n|:)',
       :stops => '.(?=:)|\n(?=;)',
       :hint => [':', "\n"],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s.sub!(/(?:\n|:)\s*/m, '')
         s.sub!(/\s*$/m, '')
@@ -387,7 +428,7 @@ private
       :curpat => '(?=\|[^=])',
       # this gnarly regex fixes ambiguous '|' for links/imgs/nowiki in tables
       :stops => '[^~](?=\|(?!(?:[^\[]*\]\])|(?:[^\{]*\}\})))',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :hint => ['|'],
       :filter => Proc.new {|s|
         s.sub!(/^ *\| */, '')
@@ -400,7 +441,7 @@ private
       :curpat => '(?=\|=)',
       # this gnarly regex fixes ambiguous '|' for links/imgs/nowiki in tables
       :stops => '[^~](?=\|(?!(?:[^\[]*\]\])|(?:[^\{]*\}\})))',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :hint => ['|'],
       :filter => Proc.new {|s|
         s.sub!(/^ *\|= */, '')
@@ -443,7 +484,7 @@ private
         s.chomp!
         s
       },
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "    <li>", :close => "</li>\n",
     },
     :nowiki => {
@@ -474,7 +515,7 @@ private
       :curpat => '(?= *=[^=])',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h1>", :close => "</h1>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -485,7 +526,7 @@ private
       :curpat => '(?= *={2}[^=])',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h2>", :close => "</h2>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -496,7 +537,7 @@ private
       :curpat => '(?= *={3}[^=])',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h3>", :close => "</h3>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -507,7 +548,7 @@ private
       :curpat => '(?= *={4}[^=])',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h4>", :close => "</h4>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -518,7 +559,7 @@ private
       :curpat => '(?= *={5}[^=])',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h5>", :close => "</h5>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -529,7 +570,7 @@ private
       :curpat => '(?= *={6,})',
       :hint => ['=', ' '],
       :stops => '\n',
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :open => "<h6>", :close => "</h6>\n\n",
       :filter => Proc.new {|s|
         s = strip_leading_and_trailing_eq_and_whitespace(s)
@@ -538,14 +579,21 @@ private
     },
     :plain => {
       :curpat => '(?=[^*/_,^\\{\[<|])',
-      :stops => INLINE,
-      :hint => PLAINCHARS,
+      :stops => @inline_markups,
+      :hint => @plain_chars,
       :open => '', :close => ''
     },
     :any => { # catch-all
       :curpat => '(?=.)',
-      :stops => INLINE,
+      :stops => @inline_markups,
       :open => '', :close => ''
+    },
+    :dupbr => {
+      :curpat => '(?=\\\\\\\\\\n)',
+      :stops => '\\\\\\\\\\n',
+      :hint => ['\\'],
+      :filter => Proc.new { "" },
+      :open => '<br />', :close => '',
     },
     :br => {
       :curpat => '(?=\\\\\\\\)',
@@ -659,7 +707,7 @@ private
       :curpat => '(?=\|)',
       :stops => '\n',
       :hint => ['|'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s.sub!(/^\|\s*/, '')
         s.sub!(/\s*$/, '')
@@ -707,7 +755,7 @@ private
       :curpat => '(?=\*\*)',
       :stops => '\*\*.*?\*\*',
       :hint => ['*'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/\*\*$/, '')
@@ -727,7 +775,7 @@ private
       # I had to do it.
       :stops => '\/\/.*?[^:]\/\/',
       :hint => ['/'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/\/\/$/, '')
@@ -739,7 +787,7 @@ private
       :curpat => '(?=\#\#)',
       :stops => '\#\#.*?\#\#',
       :hint => ['#'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/\#\#$/, '')
@@ -751,7 +799,7 @@ private
       :curpat => '(?=,,)',
       :stops => ',,.*?,,',
       :hint => [','],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/\,\,$/, '')
@@ -763,7 +811,7 @@ private
       :curpat => '(?=\^\^)',
       :stops => '\^\^.*?\^\^',
       :hint => ['^'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/\^\^$/, '')
@@ -775,7 +823,7 @@ private
       :curpat => '(?=__)',
       :stops => '__.*?__',
       :hint => ['_'],
-      :contains => ALL_INLINE,
+      :contains => @all_inline_markups,
       :filter => Proc.new {|s|
         s[0,2] = ''
         s.sub!(/__$/, '')
@@ -877,6 +925,10 @@ private
         if t && @chunks_hash[sub_chunk].has_key?(:contains)  # if it contains other chunks...
           html << parse(t, sub_chunk)         #    recurse.
         else
+          if @options[:keep_line_break] and not [:nowiki, :inowiki].include? sub_chunk
+            # inject '<br />' at the line ends
+            t.gsub!(/\n/, "<br />\n")
+          end
           html << t                    # otherwise, print it
         end
 

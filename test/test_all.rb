@@ -198,11 +198,21 @@ class TC_WikiCreole < Test::Unit::TestCase
     run_testfile("nested_lists")
   end
   
-  def run_testfile(name)
+  def test_inline_kplb
+    wc_kplb = WikiCreole.new(:keep_line_break => true)
+    run_testfile("inline_kplb", wc_kplb)
+  end
+  
+  def test_inline_noex
+    wc_noex = WikiCreole.new(:no_extended_markup => true)
+    run_testfile("inline_noex", wc_noex)
+  end
+  
+  def run_testfile(name, engine = @wc)
     name = "test_" + name
     markup = File.read("./test/#{name}.markup")
     html = File.read("./test/#{name}.html")
-    parsed = @wc.creole_parse(markup)
+    parsed = engine.creole_parse(markup)
     #write_file("./test/#{name}.processed", parsed) if name.index(/jsp/)
     assert_equal html, parsed
   end
