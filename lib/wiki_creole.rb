@@ -117,11 +117,26 @@ class WikiCreole
   # Reads Creole 1.0 markup and return XHTML.
   #
   # xhtml = WikiCreole.creole_parse(wiki_creole_markup)
-  def self.creole_parse(s)
+  def self.creole_parse(s, options = {})
     return "" unless String === s
     return "" if s.empty?
 
+    # use cache to prevent original WikiCreole.creole_parse style from slowdown
+    @objcache ||= {}
+    @objcache[options] ||= self.new(options)
+    @objcache[options].creole_parse(s)
+  end
+
+  def initialize(options = {})
+    @options = options
+    setup_chunks_hash
     init
+  end
+
+  def creole_parse(s)
+    return "" unless String === s
+    return "" if s.empty?
+
     parse(s, :top)
   end
 
@@ -137,7 +152,7 @@ class WikiCreole
   #
   # If you do not register a plugin function, plugin markup will be left
   # as is, including the surrounding << >>.
-  def self.creole_plugin(&blk)
+  def creole_plugin(&blk)
     @plugin_function = blk
   end
 
@@ -151,7 +166,7 @@ class WikiCreole
   # to pagename:
   #
   #  WikiCreole.creole_link {|s| "http://my.domain/#{s}" }
-  def self.creole_link(&blk)
+  def creole_link(&blk)
     @link_function = blk
   end
 
@@ -159,14 +174,14 @@ class WikiCreole
   # the links which are in the text but not surrounded by brackets.
   #
   #  WikiCreole.creole_barelink {|s| "#{s}.html" }
-  def self.creole_barelink(&blk)
+  def creole_barelink(&blk)
     @barelink_function = blk
   end
 
   # Same purpose as creole_link, but for image URLs.
   #
   #  WikiCreole.creole_img {|s| "http://my.domain/#{s}" }
-  def self.creole_img(&blk)
+  def creole_img(&blk)
     @img_function = blk
   end
 
@@ -178,34 +193,34 @@ class WikiCreole
   #
   # This has no effect on "bare" link markup, such as
   #  http://cpan.org
-  def self.creole_customlinks
-    @@chunks_hash[:href][:open] = ""
-    @@chunks_hash[:href][:close] = ""
-    @@chunks_hash[:link][:open] = ""
-    @@chunks_hash[:link][:close] = ""
-    @@chunks_hash[:link].delete(:contains)
-    @@chunks_hash[:link][:filter] = Proc.new {|s|
+  def creole_customlinks
+    @chunks_hash[:href][:open] = ""
+    @chunks_hash[:href][:close] = ""
+    @chunks_hash[:link][:open] = ""
+    @chunks_hash[:link][:close] = ""
+    @chunks_hash[:link].delete(:contains)
+    @chunks_hash[:link][:filter] = Proc.new {|s|
       s = @link_function.call(s) if @link_function
       s
     }
   end
 
   # Same purpose as creole_customlinks, but for "bare" link markup.
-  def self.creole_custombarelinks
-    @@chunks_hash[:ilink][:open] = ""
-    @@chunks_hash[:ilink][:close] = ""
-    @@chunks_hash[:ilink][:filter] = Proc.new {|s|
+  def creole_custombarelinks
+    @chunks_hash[:ilink][:open] = ""
+    @chunks_hash[:ilink][:close] = ""
+    @chunks_hash[:ilink][:filter] = Proc.new {|s|
       s = @barelink_function.call(s) if @barelink_function
       s
     }
   end
 
   # Similar to creole_customlinks, but for images.
-  def self.creole_customimgs
-    @@chunks_hash[:img][:open] = ""
-    @@chunks_hash[:img][:close] = ""
-    @@chunks_hash[:img].delete(:contains)
-    @@chunks_hash[:img][:filter] = Proc.new {|s|
+  def creole_customimgs
+    @chunks_hash[:img][:open] = ""
+    @chunks_hash[:img][:close] = ""
+    @chunks_hash[:img].delete(:contains)
+    @chunks_hash[:img][:filter] = Proc.new {|s|
       s = @img_function.call(s) if @img_function
       s
     }
@@ -234,23 +249,23 @@ class WikiCreole
   # ilink (bare links, e.g.
   #  http://www.cpan.org
   # ) and ip (indented paragraph).
-  def self.creole_tag(tag, type, text="")
+  def creole_tag(tag, type, text="")
     type = type.to_sym
     return unless [:open, :close].include?(type)
-    return unless @@chunks_hash.has_key?(tag)
-    @@chunks_hash[tag][type] = text
+    return unless @chunks_hash.has_key?(tag)
+    @chunks_hash[tag][type] = text
   end
 
   # See all current tags:
   #  puts WikiCreole.creole_tags()
   #
-  def self.creole_tags
+  def creole_tags
     tags = []
-    keys = @@chunks_hash.keys.collect{|x| x.to_s}.sort
+    keys = @chunks_hash.keys.collect{|x| x.to_s}.sort
     keys.each do |key|
       key = key.to_sym
-      o = @@chunks_hash[key][:open]  || ""
-      c = @@chunks_hash[key][:close] || ""
+      o = @chunks_hash[key][:open]  || ""
+      c = @chunks_hash[key][:close] || ""
       next if o !~ /</m
       o, c = [o, c].map {|x| x.gsub(/\n/m,"\\n") }
       this_tag = "#{key}: open(#{o}) close(#{c})\n"
@@ -281,14 +296,8 @@ private
   # handy - used several times in %chunks
   EOL = '(?:\n|$)'.freeze # end of line (or string)
 
-  @plugin_function = nil
-  @barelink_function = nil
-  @link_function = nil
-  @img_function = nil
-
-  @is_initialized = false
-
-  @@chunks_hash = {
+  def setup_chunks_hash
+  @chunks_hash = {
     :top => {
        :contains => BLOCKS,
     },
@@ -817,24 +826,25 @@ private
       :open => "", :close => "",
     },
   }
+  end
 
-  def self.strip_leading_and_trailing_eq_and_whitespace(s)
+  def strip_leading_and_trailing_eq_and_whitespace(s)
     s.sub!(/^\s*=*\s*/, '')
     s.sub!(/\s*=*\s*$/, '')
     s
   end
 
-  def self.strip_list(s)
+  def strip_list(s)
     s.sub!(/(?:`*| *)[*#]/, '`')
     s.gsub!(/\n(?:`*| *)[*#]/m, "\n`")
     s
   end
 
-  def self.filter_string_x_with_chunk_filter_y(str, chunk)
-    @@chunks_hash[chunk][:filter].call(str)
+  def filter_string_x_with_chunk_filter_y(str, chunk)
+    @chunks_hash[chunk][:filter].call(str)
   end
 
-  def self.parse(tref, chunk)
+  def parse(tref, chunk)
 
     sub_chunk = nil
     pos = 0
@@ -848,29 +858,29 @@ private
 
         # This is a little slower than it could be.  The delim should be
         # pre-compiled, but see the issue in the comment above.
-        if tref.index(@@chunks_hash[sub_chunk][:delim], pos)
+        if tref.index(@chunks_hash[sub_chunk][:delim], pos)
           pos = Regexp.last_match.end(0)
         else
           pos = tref.length
         end
 
-        html << @@chunks_hash[sub_chunk][:open]
+        html << @chunks_hash[sub_chunk][:open]
 
         t = tref[last_pos, pos - last_pos] # grab the chunk
 
-        if @@chunks_hash[sub_chunk].has_key?(:filter)   # filter it, if applicable
-          t = @@chunks_hash[sub_chunk][:filter].call(t)
+        if @chunks_hash[sub_chunk].has_key?(:filter)   # filter it, if applicable
+          t = @chunks_hash[sub_chunk][:filter].call(t)
         end
 
         last_pos = pos  # remember where this chunk ends (where next begins)
 
-        if t && @@chunks_hash[sub_chunk].has_key?(:contains)  # if it contains other chunks...
+        if t && @chunks_hash[sub_chunk].has_key?(:contains)  # if it contains other chunks...
           html << parse(t, sub_chunk)         #    recurse.
         else
           html << t                    # otherwise, print it
         end
 
-        html << @@chunks_hash[sub_chunk][:close]       # print the close tag
+        html << @chunks_hash[sub_chunk][:close]       # print the close tag
         
       else         
         if !first_try
@@ -896,20 +906,20 @@ private
     html.join
   end
 
-  def self.get_sub_chunk_for(tref, chunk, pos)
+  def get_sub_chunk_for(tref, chunk, pos)
 
     first_char = tref[pos, 1] # get a hint about the next chunk
-    for chunk_hinted_at in @@chunks_hash[chunk][:calculated_hint_array_for][first_char].to_a
+    for chunk_hinted_at in @chunks_hash[chunk][:calculated_hint_array_for][first_char].to_a
       #puts "trying hint #{chunk_hinted_at} for -#{first_char}- on -" + tref[pos, 2] + "-\n"
-      if tref.index(@@chunks_hash[chunk_hinted_at][:curpatcmp], pos) # hint helped id the chunk
+      if tref.index(@chunks_hash[chunk_hinted_at][:curpatcmp], pos) # hint helped id the chunk
         return chunk_hinted_at
       end
     end
 
     # the hint didn't help. Check all the chunk types which this chunk contains
-    for contained_chunk in @@chunks_hash[chunk][:contains].to_a
+    for contained_chunk in @chunks_hash[chunk][:contains].to_a
       #puts "trying contained chunk #{contained_chunk} on -" + tref[pos, 2] + "- within chunk #{chunk.to_s}\n"
-      if tref.index(@@chunks_hash[contained_chunk.to_sym][:curpatcmp], pos) # found one
+      if tref.index(@chunks_hash[contained_chunk.to_sym][:curpatcmp], pos) # found one
         return contained_chunk.to_sym
       end
     end
@@ -919,16 +929,16 @@ private
 
   # compile a regex that matches any of the patterns that interrupt the
   # current chunk.
-  def self.delim(chunk)
-    chunk = @@chunks_hash[chunk]
+  def delim(chunk)
+    chunk = @chunks_hash[chunk]
     if Array === chunk[:stops]
       regex = ''
       chunk[:stops].each do |stop|
         stop = stop.to_sym
-        if @@chunks_hash[stop].has_key?(:fwpat)
-          regex += @@chunks_hash[stop][:fwpat] + "|"
+        if @chunks_hash[stop].has_key?(:fwpat)
+          regex += @chunks_hash[stop][:fwpat] + "|"
         else
-          regex += @@chunks_hash[stop][:curpat] + "|"
+          regex += @chunks_hash[stop][:curpat] + "|"
         end
       end
       regex.chop!
@@ -939,14 +949,10 @@ private
   end
 
   # one-time optimization of the grammar - speeds the parser up a ton
-  def self.init
-    return if @is_initialized
-
-    @is_initialized = true
-
+  def init
     # precompile a bunch of regexes
-    @@chunks_hash.keys.each do |k|
-      c = @@chunks_hash[k]
+    @chunks_hash.keys.each do |k|
+      c = @chunks_hash[k]
       if c.has_key?(:curpat)
         c[:curpatcmp] = Regexp.compile('\G' + c[:curpat], Regexp::MULTILINE)
       end
@@ -961,7 +967,7 @@ private
         c[:contains].each do |ct|
           ct = ct.to_sym
 
-          (@@chunks_hash[ct][:hint] || []).each do |hint|
+          (@chunks_hash[ct][:hint] || []).each do |hint|
             (c[:calculated_hint_array_for][hint] ||= []) << ct
           end
 

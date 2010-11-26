@@ -7,85 +7,88 @@ class TC_WikiCreole < Test::Unit::TestCase
 
   $strict = false
   
+  def setup
+    @wc = WikiCreole.new
+  end
+
   #-----------------------------------------------------------------------------
   # This first section is the low level method sanity tests.
 
   def test_strip_leading_and_trailing_eq_and_whitespace
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("==head")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace(" == head")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("head ==")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("head == ")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("head  ")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("  head")
-    assert_equal "head", WikiCreole.strip_leading_and_trailing_eq_and_whitespace("  head  ")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"==head")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace," == head")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"head ==")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"head == ")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"head  ")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"  head")
+    assert_equal "head", @wc.send(:strip_leading_and_trailing_eq_and_whitespace,"  head  ")
   end
   
   def test_strip_list
-    assert_equal "`head", WikiCreole.strip_list(" *head")
-    assert_equal "\n`head", WikiCreole.strip_list("\n *head")
-    assert_equal "`**head", WikiCreole.strip_list("***head")
+    assert_equal "`head", @wc.send(:strip_list," *head")
+    assert_equal "\n`head", @wc.send(:strip_list,"\n *head")
+    assert_equal "`**head", @wc.send(:strip_list,"***head")
   end
   
   def test_chunk_filter_lambdas
-    assert_equal "a string with a  in it", WikiCreole.filter_string_x_with_chunk_filter_y("a string with a : in it", :ip)
-    assert_equal "a string with a newline", WikiCreole.filter_string_x_with_chunk_filter_y("a string with a newline\n", :p)
-    assert_equal "a string with a newline", WikiCreole.filter_string_x_with_chunk_filter_y("a string with a newline\n", :dd)
-    assert_equal "", WikiCreole.filter_string_x_with_chunk_filter_y("a non-blank string", :blank)
+    assert_equal "a string with a  in it", @wc.send(:filter_string_x_with_chunk_filter_y,"a string with a : in it", :ip)
+    assert_equal "a string with a newline", @wc.send(:filter_string_x_with_chunk_filter_y,"a string with a newline\n", :p)
+    assert_equal "a string with a newline", @wc.send(:filter_string_x_with_chunk_filter_y,"a string with a newline\n", :dd)
+    assert_equal "", @wc.send(:filter_string_x_with_chunk_filter_y,"a non-blank string", :blank)
     
     #special... uses strip_list function inside the lamda function
-    assert_equal "`head", WikiCreole.filter_string_x_with_chunk_filter_y(" *head", :ul)
-    assert_equal "head", WikiCreole.filter_string_x_with_chunk_filter_y("head == ", :h5)
+    assert_equal "`head", @wc.send(:filter_string_x_with_chunk_filter_y," *head", :ul)
+    assert_equal "head", @wc.send(:filter_string_x_with_chunk_filter_y,"head == ", :h5)
   end
   
   def test_init
-    WikiCreole.init
+    @wc.send(:init)
     assert_equal 1, 1
   end
   
   def test_sub_chunk_for
-    WikiCreole.init
     str = "//Hello// **Hello**"
-    assert_equal :p, WikiCreole.get_sub_chunk_for(str, :top, 0)
-    assert_equal :em, WikiCreole.get_sub_chunk_for(str, :p, 0)
-    assert_equal :plain, WikiCreole.get_sub_chunk_for(str, :p, 9)
-    assert_equal :strong, WikiCreole.get_sub_chunk_for(str, :p, 10)
+    assert_equal :p, @wc.send(:get_sub_chunk_for,str, :top, 0)
+    assert_equal :em, @wc.send(:get_sub_chunk_for,str, :p, 0)
+    assert_equal :plain, @wc.send(:get_sub_chunk_for,str, :p, 9)
+    assert_equal :strong, @wc.send(:get_sub_chunk_for,str, :p, 10)
   end
   
   def test_strong
-    s = WikiCreole.creole_parse("**Hello**")
+    s = @wc.creole_parse("**Hello**")
     assert_equal "<p><strong>Hello</strong></p>\n\n", s
   end
   
   def test_italic
-    s = WikiCreole.creole_parse("//Hello//")
+    s = @wc.creole_parse("//Hello//")
     assert_equal "<p><em>Hello</em></p>\n\n", s
   end
   
   def test_italic_bold_with_no_spaces
-    s = WikiCreole.creole_parse("//Hello//**Hello**")
+    s = @wc.creole_parse("//Hello//**Hello**")
     assert_equal "<p><em>Hello</em><strong>Hello</strong></p>\n\n", s
   end
   
   def test_italic_bold_with_a_space_in_the_middle
-    s = WikiCreole.creole_parse("//Hello// **Hello**")
+    s = @wc.creole_parse("//Hello// **Hello**")
     assert_equal "<p><em>Hello</em> <strong>Hello</strong></p>\n\n", s
   end
   
   def test_two_paragraph_italic_bold_with_a_space_in_the_middle
-    s = WikiCreole.creole_parse("//Hello// **Hello**\n\n//Hello// **Hello**")
+    s = @wc.creole_parse("//Hello// **Hello**\n\n//Hello// **Hello**")
     assert_equal "<p><em>Hello</em> <strong>Hello</strong></p>\n\n<p>" +
       "<em>Hello</em> <strong>Hello</strong></p>\n\n", s
   end
   
   def test_link_with_a_page_name
-    s = WikiCreole.creole_parse("the site http://www.yahoo.com/page.html is a site")
+    s = @wc.creole_parse("the site http://www.yahoo.com/page.html is a site")
     assert_equal %Q{<p>the site <a href="http://www.yahoo.com/page.html">http://www.yahoo.com/page.html</a> is a site</p>\n\n}, s
   end
   
   def test_link_with_a_trailing_slash
     # This test caught a bug in the initial parser, so I changed the ilink
     # :stops regex so it worked.
-    s = WikiCreole.creole_parse("the site http://www.yahoo.com/ is a site")
+    s = @wc.creole_parse("the site http://www.yahoo.com/ is a site")
     assert_equal %Q{<p>the site <a href="http://www.yahoo.com/">http://www.yahoo.com/</a> is a site</p>\n\n}, s
   end
   
@@ -94,7 +97,7 @@ class TC_WikiCreole < Test::Unit::TestCase
     # beginning of the http, where it makes more sense, it breaks.  Without
     # negative lookback assertions it may be the best we can do without
     # significanly hampering performance.
-    s = WikiCreole.creole_parse("the site http:~//www.yahoo.com/ is a site")
+    s = @wc.creole_parse("the site http:~//www.yahoo.com/ is a site")
     assert_equal %Q{<p>the site http://www.yahoo.com/ is a site</p>\n\n}, s
   end
   
@@ -105,7 +108,7 @@ class TC_WikiCreole < Test::Unit::TestCase
     markup = "This is a paragraph with a [[ link | some link ]].\nCheck it out."
     goodhtml = %Q{<p>This is a paragraph with a <a href="link">some link</a>.\nCheck it out.</p>\n\n}
     
-    assert_equal goodhtml, WikiCreole.creole_parse(markup)
+    assert_equal goodhtml, @wc.creole_parse(markup)
     
   end
   
@@ -113,51 +116,51 @@ class TC_WikiCreole < Test::Unit::TestCase
     markup = "This is a paragraph with a [[ link ]].\nCheck it out."
     goodhtml = %Q{<p>This is a paragraph with a <a href="link">link</a>.\nCheck it out.</p>\n\n}
     
-    assert_equal goodhtml, WikiCreole.creole_parse(markup)
+    assert_equal goodhtml, @wc.creole_parse(markup)
     
   end
   
   def test_user_supplied_creole_link_function
     
-    WikiCreole.creole_link {|s| s.upcase }
+    @wc.creole_link {|s| s.upcase }
     
     markup = "This is a paragraph with an uppercased [[ link ]].\nCheck it out."
     goodhtml = %Q{<p>This is a paragraph with an uppercased <a href="LINK">link</a>.\nCheck it out.</p>\n\n}
     
-    assert_equal goodhtml, WikiCreole.creole_parse(markup)
+    assert_equal goodhtml, @wc.creole_parse(markup)
     
     # set the link function back to being nil so that the rest of the tests
     # are not affected by the custom link function
-    WikiCreole.creole_link
+    @wc.creole_link
 
   end
   
   def test_puts_existing_creole_tags
-    tags = WikiCreole.creole_tags
+    tags = @wc.creole_tags
     assert tags.index(/u: open\(<u>\) close\(<\/u>\)/)
   end
   
   def test_custom_creole_tag
-    WikiCreole.creole_tag(:p, :open, "<p class=special>")
+    @wc.creole_tag(:p, :open, "<p class=special>")
 
     markup = "This is a paragraph."
     goodhtml = "<p class=special>This is a paragraph.</p>\n\n"
 
-    assert_equal goodhtml, WikiCreole.creole_parse(markup)
-    WikiCreole.creole_tag(:p, :open, "<p>")
+    assert_equal goodhtml, @wc.creole_parse(markup)
+    @wc.creole_tag(:p, :open, "<p>")
   end
   
   def test_user_supplied_plugin_function
-    WikiCreole.creole_plugin {|s| s.upcase }
+    @wc.creole_plugin {|s| s.upcase }
     
     markup = "This is a paragraph with an uppercasing << plugin >>.\nCheck it out."
     goodhtml = %Q{<p>This is a paragraph with an uppercasing  PLUGIN .\nCheck it out.</p>\n\n}
     
-    assert_equal goodhtml, WikiCreole.creole_parse(markup)
+    assert_equal goodhtml, @wc.creole_parse(markup)
     
     # set the link function back to being nil so that the rest of the tests
     # are not affected by the custom link function
-    WikiCreole.creole_plugin
+    @wc.creole_plugin
   end
 
   #-----------------------------------------------------------------------------
@@ -199,7 +202,7 @@ class TC_WikiCreole < Test::Unit::TestCase
     name = "test_" + name
     markup = File.read("./test/#{name}.markup")
     html = File.read("./test/#{name}.html")
-    parsed = WikiCreole.creole_parse(markup)
+    parsed = @wc.creole_parse(markup)
     #write_file("./test/#{name}.processed", parsed) if name.index(/jsp/)
     assert_equal html, parsed
   end
@@ -412,8 +415,8 @@ class TC_WikiCreole < Test::Unit::TestCase
       # tc "<p><a href=\"http://www.wikicreole.org/\">http://www.wikicreole.org/</a>#{esc_punct}</p>", "http://www.wikicreole.org/#{punct}"
     # }
     # # Creole1.0: Nameds URLs (by example)
-    # tc("<p><a href=\"http://www.wikicreole.org/\">Visit the WikiCreole website</a></p>",
-       # "[[http://www.wikicreole.org/|Visit the WikiCreole website]]")
+    # tc("<p><a href=\"http://www.wikicreole.org/\">Visit the @wc website</a></p>",
+       # "[[http://www.wikicreole.org/|Visit the @wc website]]")
 
     # unless $strict
       # # Parsing markup within a link is optional
@@ -877,7 +880,7 @@ class TC_WikiCreole < Test::Unit::TestCase
   # end
   
   def tc(html, creole)
-    output = WikiCreole.creole_parse(creole)
+    output = @wc.creole_parse(creole)
     
     #if it's one of the specially formatted blocks of html, then strip it
     if html.index(/\n {4}$/m)
